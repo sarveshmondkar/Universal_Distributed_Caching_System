@@ -1,0 +1,63 @@
+# =========================================================================
+# Dependencies (Never commit these, fetch fresh via npm install/yarn install)
+# =========================================================================
+node_modules/
+jspm_packages/
+web_modules/
+
+# =========================================================================
+# Environment Variables & Secrets (Contains API keys, passwords, database URLs)
+# =========================================================================
+.env
+.env.local
+.env.development
+.env.test
+.env.production
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+*.pem
+*.key
+
+# =========================================================================
+# Logs, Diagnostic Reports, & Runtime Caches
+# =========================================================================
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.pnpm-debug.log*
+.npm
+.eslintcache
+.stylelintcache
+
+# =========================================================================
+# Build Outputs & Bundlers (Compiled code)
+# =========================================================================
+dist/
+build/
+out/
+.next/
+.nuxt/
+.docusaurus/
+.cache/
+
+# =========================================================================
+# Testing Caches & Coverage Maps
+# =========================================================================
+coverage/
+.nyc_output/
+.jest/
+
+# =========================================================================
+# Operating System & IDE Configs (Optional but recommended)
+# =========================================================================
+.DS_Store
+Thumbs.db
+.vscode/
+!.vscode/extensions.json
+.idea/
