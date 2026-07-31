@@ -9,20 +9,13 @@ export function setCache(req, res) {
     return res.status(400).json({ message: "Key and value are required" });
   }
 
-  const dataObj = {
-    value,
-  };
-
-  if (ttl !== undefined) {
-    dataObj.ttl = ttl;
-  }
-
-  cache.set(key, dataObj);
+  cache.set(key, value, ttl);
 
   return res.status(201).json({
     message: "Data stored successfully",
     key,
-    data: dataObj,
+    value,
+    ttl
   });
 }
 
@@ -31,10 +24,10 @@ export function getCache(req, res) {
 
   const value = cache.get(key);
 
-  if(value===undefined){
+  if (value === undefined) {
     return res.status(404).json({
-      message: "key not found or expired"
-    })
+      message: "key not found or expired",
+    });
   }
 
   return res.json({
@@ -46,12 +39,13 @@ export function getCache(req, res) {
 export function deleteCache(req, res) {
   const { key } = req.params;
 
-  if (!cache.has(key)) {
+  const deleted = cache.delete(key);
+
+  if (!deleted) {
     return res.status(404).json({
       message: "Key not found",
     });
   }
-  cache.delete(key);
 
   return res.json({
     message: "Key deleted successfully",
@@ -70,4 +64,8 @@ export function getCacheSize(req, res) {
   return res.json({
     size: cache.size(),
   });
+}
+
+export function debugCache(req, res) {
+  return res.json(cache.debug());
 }

@@ -72,6 +72,24 @@ class DoublyLinkedList {
     this.remove(removeNode);
     return removeNode;
   }
+
+  getOrder() {
+    const order = [];
+
+    let current = this.head;
+
+    while (current) {
+      order.push({
+        key: current.key,
+        value: current.value,
+        expiresAt: current.expiresAt,
+      });
+
+      current = current.next;
+    }
+
+    return order;
+  }
 }
 
-export {Node, DoublyLinkedList} 
+export { Node, DoublyLinkedList };

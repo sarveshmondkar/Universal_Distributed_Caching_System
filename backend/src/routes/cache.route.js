@@ -14,5 +14,6 @@ router.get("/cache-size", getCacheSize);
 router.get("/has/:key", hasCache);
 router.get("/:key", getCache);
 router.delete("/delete/:key", deleteCache);
+router.get("/debug", debugCache);
 
 export default router;
