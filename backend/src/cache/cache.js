@@ -1,4 +1,4 @@
-import { Node, DoublyLinkedList } from "./doublyLinkList";
+import { Node, DoublyLinkedList } from "./doublyLinkList.js";
 
 export class Cache {
   constructor(cleanUpInterval = 5000, capacity = 100) {
@@ -6,10 +6,21 @@ export class Cache {
     this.list = new DoublyLinkedList();
     this.capacity = capacity;
 
+    //stats
+    this.stats = {
+      hits: 0,
+      misses: 0,
+      evictions: 0,
+      expiredKeys: 0,
+      totalRequests: 0,
+    };
+
     //This deletes key after the TTL(time to live) expiration
-    setInterval(() => {
+    this.cleanupTimer = setInterval(() => {
       this.startCleaningUp();
     }, cleanUpInterval);
+
+    this.cleanupTimer.unref();
   }
 
   set(key, value, ttl) {
@@ -40,6 +51,9 @@ export class Cache {
       //remove head from list
       const removedNode = this.list.removeHead();
 
+      //stats updation: lru eviction
+      this.stats.evictions++;
+
       // remove from the map as well
       this.store.delete(removedNode.key);
     }
@@ -58,8 +72,13 @@ export class Cache {
   }
 
   get(key) {
+    //stats updation: totalrequest
+    this.stats.totalRequests++;
+
     //if the key doesn't exists in the map
     if (!this.store.has(key)) {
+      //stats updation: missed req
+      this.stats.misses++;
       return undefined;
     }
 
@@ -69,6 +88,10 @@ export class Cache {
     //if node ttl is expired ?
     if (node.expiresAt !== undefined) {
       if (Date.now() > node.expiresAt) {
+        //stats updation: expired keys , missed req
+        this.stats.expiredKeys++;
+        this.stats.misses++;
+
         //remove from the map
         this.store.delete(key);
 
@@ -81,6 +104,10 @@ export class Cache {
 
     //move to the tail in the linkedlist
     this.list.moveToEnd(node);
+
+    //stats updation: hits
+    this.stats.hits++;
+
     return node.value;
   }
 
@@ -124,6 +151,9 @@ export class Cache {
           //remove the node form the linkedlist
           this.list.remove(node);
 
+          //stats updation: expired keys
+          this.stats.expiredKeys++;
+
           //remove from the map
           this.store.delete(key);
 
@@ -140,6 +170,23 @@ export class Cache {
       head: this.list.head?.key ?? null,
       tail: this.list.tail?.key ?? null,
       order: this.list.getOrder(),
+    };
+  }
+
+  getStats() {
+    return {
+      hits: this.stats.hits,
+      misses: this.stats.misses,
+      totalRequests: this.stats.totalRequests,
+      evictions: this.stats.evictions,
+      expiredKeys: this.stats.expiredKeys,
+      currentSize: this.store.size,
+      capacity: this.capacity,
+      hitRatio:
+        this.stats.totalRequests === 0
+          ? "0%"
+          : ((this.stats.hits / this.stats.totalRequests) * 100).toFixed(2) +
+            "%",
     };
   }
 }

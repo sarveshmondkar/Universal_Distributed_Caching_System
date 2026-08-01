@@ -69,3 +69,7 @@ export function getCacheSize(req, res) {
 export function debugCache(req, res) {
   return res.json(cache.debug());
 }
+
+export function getCacheStats(req, res) {
+    return res.json(cache.getStats());
+}
