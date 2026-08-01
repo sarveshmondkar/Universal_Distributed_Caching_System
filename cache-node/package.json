@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "dev": "node --watch src/server.js",
+    "dev": "node --watch ./src/server.js",
+    "dev:node1": "cross-env PORT=4001 node --watch ./src/server.js",
+    "dev:node2": "cross-env PORT=4002 node --watch ./src/server.js",
+    "dev:node3": "cross-env PORT=4003 node --watch ./src/server.js",
     "test": "node --experimental-vm-modules node_modules/jest/bin/jest.js"
   },
   "keywords": [],
@@ -12,9 +15,11 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "dotenv": "^17.4.2",
     "express": "^5.2.1"
   },
   "devDependencies": {
+    "cross-env": "^10.1.0",
     "jest": "^30.4.2"
   }
 }

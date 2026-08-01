@@ -1,4 +1,4 @@
-import { Node, DoublyLinkedList } from "./doublyLinkList.js";
+import { Node, DoublyLinkedList } from "./doublyLinkedList.js";
 
 export class Cache {
   constructor(cleanUpInterval = 5000, capacity = 100) {
@@ -157,7 +157,6 @@ export class Cache {
           //remove from the map
           this.store.delete(key);
 
-          console.log(`Deleted expired key: ${key}`);
         }
       }
     });
