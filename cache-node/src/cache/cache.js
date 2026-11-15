@@ -1,191 +1,117 @@
 import { Node, DoublyLinkedList } from "./doublyLinkedList.js";
 
 export class Cache {
-  constructor(cleanUpInterval = 5000, capacity = 100) {
+  constructor(cleanUpInterval = 5000, capacity = 100, { maxValueBytes = 1024 * 1024 } = {}) {
+    if (!Number.isInteger(capacity) || capacity < 1) throw new TypeError("capacity must be a positive integer");
     this.store = new Map();
     this.list = new DoublyLinkedList();
     this.capacity = capacity;
-
-    //stats
-    this.stats = {
-      hits: 0,
-      misses: 0,
-      evictions: 0,
-      expiredKeys: 0,
-      totalRequests: 0,
-    };
-
-    //This deletes key after the TTL(time to live) expiration
-    this.cleanupTimer = setInterval(() => {
-      this.startCleaningUp();
-    }, cleanUpInterval);
-
-    this.cleanupTimer.unref();
+    this.maxValueBytes = maxValueBytes;
+    this.stats = { hits: 0, misses: 0, evictions: 0, expiredKeys: 0, totalRequests: 0, sets: 0, deletes: 0 };
+    this.startedAt = Date.now();
+    this.cleanupTimer = setInterval(() => this.startCleaningUp(), cleanUpInterval);
+    this.cleanupTimer.unref?.();
   }
 
   set(key, value, ttl) {
-    const timestamp = Date.now();
-
-    let expiresAt;
-
-    if (ttl !== undefined) {
-      expiresAt = timestamp + ttl;
-    }
-
-    //if node is present
-    if (this.store.has(key)) {
-      //get the node from the map
-      const nodeToUpdate = this.store.get(key);
-
-      //update the values
-      nodeToUpdate.value = value;
-      nodeToUpdate.expiresAt = expiresAt;
-
-      //update to linkedList
-      this.list.moveToEnd(nodeToUpdate);
+    if (typeof key !== "string" || !key.trim()) throw new TypeError("key must be a non-empty string");
+    if (ttl !== undefined && ttl !== null && (!Number.isFinite(ttl) || ttl < 0)) throw new TypeError("ttl must be a non-negative number of milliseconds");
+    const bytes = Buffer.byteLength(JSON.stringify(value) ?? "null");
+    if (bytes > this.maxValueBytes) throw new RangeError(`value exceeds ${this.maxValueBytes} bytes`);
+    const expiresAt = ttl === undefined || ttl === null ? undefined : Date.now() + ttl;
+    this.stats.sets++;
+    const existing = this.store.get(key);
+    if (existing) {
+      existing.value = value;
+      existing.expiresAt = expiresAt;
+      this.list.moveToEnd(existing);
       return;
     }
-
-    //if size is map size is full
-    if (this.store.size >= this.capacity) {
-      //remove head from list
-      const removedNode = this.list.removeHead();
-
-      //stats updation: lru eviction
+    while (this.store.size >= this.capacity) {
+      const removed = this.list.removeHead();
+      if (!removed) break;
+      this.store.delete(removed.key);
       this.stats.evictions++;
-
-      // remove from the map as well
-      this.store.delete(removedNode.key);
     }
-
-    //create a new node
-    const node = new Node(key, {
-      value,
-      expiresAt,
-    });
-
-    //append the node in the linkedList
+    const node = new Node(key, { value, expiresAt });
     this.list.append(node);
-
-    //add the node in the map
     this.store.set(key, node);
   }
 
-  get(key) {
-    //stats updation: totalrequest
+  /** Read a key and count it as a hit or miss. Returns { value, expiresAt } or undefined. */
+  getEntry(key) {
     this.stats.totalRequests++;
-
-    //if the key doesn't exists in the map
-    if (!this.store.has(key)) {
-      //stats updation: missed req
-      this.stats.misses++;
-      return undefined;
-    }
-
-    //get the node from the map
     const node = this.store.get(key);
-
-    //if node ttl is expired ?
-    if (node.expiresAt !== undefined) {
-      if (Date.now() > node.expiresAt) {
-        //stats updation: expired keys , missed req
-        this.stats.expiredKeys++;
-        this.stats.misses++;
-
-        //remove from the map
-        this.store.delete(key);
-
-        //remove from the linkedlist too
-        this.list.remove(node);
-
-        return undefined;
-      }
+    if (!node) { this.stats.misses++; return undefined; }
+    if (node.expiresAt !== undefined && Date.now() >= node.expiresAt) {
+      this._remove(node); this.stats.expiredKeys++; this.stats.misses++; return undefined;
     }
-
-    //move to the tail in the linkedlist
     this.list.moveToEnd(node);
-
-    //stats updation: hits
     this.stats.hits++;
+    return { value: node.value, expiresAt: node.expiresAt };
+  }
 
-    return node.value;
+  get(key) { return this.getEntry(key)?.value; }
+
+  /** Inspect a key without touching LRU order or hit/miss counters. */
+  peek(key) {
+    const node = this.store.get(key);
+    if (!node) return undefined;
+    if (node.expiresAt !== undefined && Date.now() >= node.expiresAt) return undefined;
+    return { value: node.value, expiresAt: node.expiresAt };
   }
 
   has(key) {
     const node = this.store.get(key);
-
-    if (!node) {
-      return false;
-    }
-
-    if (node.expiresAt !== undefined && Date.now() > node.expiresAt) {
-      this.list.remove(node);
-      this.store.delete(key);
-      return false;
-    }
-
+    if (!node) return false;
+    if (node.expiresAt !== undefined && Date.now() >= node.expiresAt) { this._remove(node); this.stats.expiredKeys++; return false; }
     return true;
   }
 
-  delete(key) {
-    const node = this.store.get(key);
+  delete(key) { const node = this.store.get(key); if (!node) return false; this._remove(node); this.stats.deletes++; return true; }
 
-    if (!node) {
-      return false;
-    }
-
-    this.list.remove(node);
-    this.store.delete(key);
-
-    return true;
+  /** Remove every entry. Counters are kept so the dashboard history stays continuous. */
+  clear() {
+    const removed = this.store.size;
+    this.store.clear();
+    this.list = new DoublyLinkedList();
+    return removed;
   }
-
-  size() {
-    return this.store.size;
-  }
+  _remove(node) { this.list.remove(node); this.store.delete(node.key); }
+  size() { this.startCleaningUp(); return this.store.size; }
 
   startCleaningUp() {
-    this.store.forEach((node, key) => {
-      if (node.expiresAt !== undefined) {
-        if (Date.now() > node.expiresAt) {
-          //remove the node form the linkedlist
-          this.list.remove(node);
-
-          //stats updation: expired keys
-          this.stats.expiredKeys++;
-
-          //remove from the map
-          this.store.delete(key);
-
-        }
-      }
-    });
+    const now = Date.now();
+    for (const [key, node] of this.store) {
+      if (node.expiresAt !== undefined && now >= node.expiresAt) { this._remove(node); this.stats.expiredKeys++; }
+    }
   }
 
-  debug() {
-    return {
-      size: this.store.size,
-      capacity: this.capacity,
-      head: this.list.head?.key ?? null,
-      tail: this.list.tail?.key ?? null,
-      order: this.list.getOrder(),
-    };
+  entries() {
+    this.startCleaningUp();
+    return [...this.store].map(([key, node]) => ({ key, value: node.value, expiresAt: node.expiresAt }));
   }
+
+  listKeys() {
+    this.startCleaningUp();
+    return [...this.store].map(([key, node]) => ({ key, expiresAt: node.expiresAt }));
+  }
+
+  restore(entries = []) {
+    const setsBefore = this.stats.sets;
+    for (const entry of entries) {
+      const remaining = entry.expiresAt === undefined ? undefined : entry.expiresAt - Date.now();
+      if (remaining === undefined || remaining > 0) this.set(entry.key, entry.value, remaining);
+    }
+    this.stats.sets = setsBefore; // restoring a snapshot is not client write traffic
+  }
+
+  debug() { return { size: this.store.size, capacity: this.capacity, head: this.list.head?.key ?? null, tail: this.list.tail?.key ?? null, order: this.list.getOrder() }; }
 
   getStats() {
-    return {
-      hits: this.stats.hits,
-      misses: this.stats.misses,
-      totalRequests: this.stats.totalRequests,
-      evictions: this.stats.evictions,
-      expiredKeys: this.stats.expiredKeys,
-      currentSize: this.store.size,
-      capacity: this.capacity,
-      hitRatio:
-        this.stats.totalRequests === 0
-          ? "0%"
-          : ((this.stats.hits / this.stats.totalRequests) * 100).toFixed(2) +
-            "%",
-    };
+    const { hits, misses, totalRequests, evictions, expiredKeys, sets, deletes } = this.stats;
+    return { hits, misses, totalRequests, evictions, expiredKeys, sets, deletes, startedAt: this.startedAt, uptimeSeconds: Math.floor((Date.now() - this.startedAt) / 1000), currentSize: this.store.size, capacity: this.capacity, hitRatio: totalRequests ? `${((hits / totalRequests) * 100).toFixed(2)}%` : "0%" };
   }
+
+  close() { clearInterval(this.cleanupTimer); }
 }

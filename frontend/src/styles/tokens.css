@@ -1,0 +1,45 @@
+:root {
+  /* Surfaces */
+  --paper: #edeff4;
+  --raised: #ffffff;
+  --wash: #e2e6ef;
+  --rule: #d0d6e4;
+  --rule-strong: #aeb6cc;
+
+  /* Ink */
+  --ink: #101a3f;
+  --ink-2: #4a5478;
+  --ink-3: #5f6a8c;
+
+  /* The ring plate */
+  --plate: #14267a;
+  --plate-deep: #0f1d5e;
+  --plate-rule: #2e4396;
+  --plate-ink: #f2f4ff;
+  --plate-ink-2: #b3bce6;
+
+  /* One accent, used for the thing you are acting on */
+  --signal: #ffd83d;
+  --signal-hover: #ffe56e;
+  --signal-soft: #fff1b0;
+
+  /* Status */
+  --danger: #b8261f;
+  --danger-soft: #fbe3e0;
+  --ok: #0f6f4f;
+  --ok-soft: #dcf2e8;
+  --warn: #8a5a00;
+  --warn-soft: #fff1c2;
+
+  --font-ui: "Bricolage Grotesque", "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  --step--1: 0.8125rem;
+  --step-0: 0.9375rem;
+  --step-1: 1.125rem;
+  --step-2: 1.375rem;
+  --step-3: clamp(2rem, 1.35rem + 2.6vw, 3.3rem);
+
+  --gutter: clamp(16px, 4vw, 48px);
+  --max: 1240px;
+}

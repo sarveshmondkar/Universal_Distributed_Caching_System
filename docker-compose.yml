@@ -1,0 +1,71 @@
+# Three cache nodes, a router, and the dashboard.
+#   docker compose up --build            -> http://localhost:8080
+#   docker compose --profile scale up -d cache4
+#     then add http://cache4:4001 from the dashboard's Cluster page to see keys rebalance.
+
+x-cache-node: &cache-node
+  build: ./cache-node
+  restart: unless-stopped
+  healthcheck:
+    test: ["CMD", "wget", "-qO-", "http://localhost:4001/health"]
+    interval: 5s
+    timeout: 3s
+    retries: 5
+
+services:
+  cache1:
+    <<: *cache-node
+    environment: { PORT: 4001, CACHE_CAPACITY: 10000, PERSISTENCE_FILE: /data/cache.json }
+    volumes: [cache1-data:/data]
+    ports: ["4001:4001"]
+  cache2:
+    <<: *cache-node
+    environment: { PORT: 4001, CACHE_CAPACITY: 10000, PERSISTENCE_FILE: /data/cache.json }
+    volumes: [cache2-data:/data]
+    ports: ["4002:4001"]
+  cache3:
+    <<: *cache-node
+    environment: { PORT: 4001, CACHE_CAPACITY: 10000, PERSISTENCE_FILE: /data/cache.json }
+    volumes: [cache3-data:/data]
+    ports: ["4003:4001"]
+
+  # Not part of the default cluster. Start it, then add it from the dashboard.
+  cache4:
+    <<: *cache-node
+    profiles: ["scale"]
+    environment: { PORT: 4001, CACHE_CAPACITY: 10000, PERSISTENCE_FILE: /data/cache.json }
+    volumes: [cache4-data:/data]
+    ports: ["4004:4001"]
+
+  router:
+    build: ./router
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      CACHE_NODES: http://cache1:4001,http://cache2:4001,http://cache3:4001
+      REPLICATION_FACTOR: 2
+      VIRTUAL_NODES: 100
+      HEALTH_INTERVAL_MS: 3000
+    depends_on:
+      cache1: { condition: service_healthy }
+      cache2: { condition: service_healthy }
+      cache3: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    ports: ["3000:3000"]
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      router: { condition: service_healthy }
+    ports: ["8080:80"]
+
+volumes:
+  cache1-data:
+  cache2-data:
+  cache3-data:
+  cache4-data:

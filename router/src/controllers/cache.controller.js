@@ -1,60 +1,32 @@
-import axios from "axios";
+import { ClusterError } from "../services/cluster.js";
 
-const CACHE_NODE = process.env.CACHE_NODE || "http://localhost:4001";
-
-async function forwardRequest(req, res, axiosRequest) {
+/**
+ * Adapt a service call that resolves to { status, body } into an Express handler.
+ * ClusterError carries an HTTP status; anything else is an unexpected 500.
+ */
+export const handle = (action) => async (req, res) => {
   try {
-    const response = await axiosRequest();
-
-    return res.status(response.status).json(response.data);
+    const { status = 200, body } = await action(req);
+    return res.status(status).json(body);
   } catch (error) {
-    if (error.response) {
-      return res.status(error.response.status).json(error.response.data);
-    }
-
-    return res.status(500).json({
-      message: "Unable to connect to cache node",
-    });
+    if (error instanceof ClusterError) return res.status(error.status).json({ message: error.message });
+    console.error(error);
+    return res.status(500).json({ message: "Internal server error" });
   }
-}
+};
 
-export async function setCache(req, res) {
-  return forwardRequest(req, res, () =>
-    axios.post(`${CACHE_NODE}/cache`, req.body),
-  );
-}
-
-export async function getCache(req, res) {
-  const { key } = req.params;
-  return forwardRequest(req, res, () =>
-    axios.get(`${CACHE_NODE}/cache/${key}`),
-  );
-}
-
-export async function hasCache(req, res) {
-  const { key } = req.params;
-  return forwardRequest(req, res, () =>
-    axios.get(`${CACHE_NODE}/cache/has/${key}`),
-  );
-}
-
-export async function deleteCache(req, res) {
-  const { key } = req.params;
-  return forwardRequest(req, res, () =>
-    axios.delete(`${CACHE_NODE}/cache/delete/${key}`),
-  );
-}
-
-export async function getCacheSize(req, res) {
-  return forwardRequest(req, res, () =>
-    axios.get(`${CACHE_NODE}/cache/cache-size`),
-  );
-}
-
-export async function debugCache(req, res) {
-  return forwardRequest(req, res, () => axios.get(`${CACHE_NODE}/cache/debug`));
-}
-
-export async function getCacheStats(req, res) {
-  return forwardRequest(req, res, () => axios.get(`${CACHE_NODE}/cache/stats`));
+export function createCacheController(cluster) {
+  return {
+    health: handle(() => cluster.checkHealth()),
+    setCache: handle((req) => cluster.set(req.body ?? {})),
+    getCache: handle((req) => cluster.get(req.params.key, { peek: req.query.peek === "true" })),
+    hasCache: handle((req) => cluster.has(req.params.key)),
+    deleteCache: handle((req) => cluster.delete(req.params.key)),
+    flushCache: handle(() => cluster.flush()),
+    listCacheKeys: handle((req) => cluster.listKeys({ q: req.query.q, limit: req.query.limit })),
+    locateKey: handle((req) => cluster.locate(req.params.key)),
+    getCacheSize: handle(() => cluster.size()),
+    getCacheStats: handle(() => cluster.stats()),
+    debugCache: handle((req) => cluster.debug(req.query.limit)),
+  };
 }

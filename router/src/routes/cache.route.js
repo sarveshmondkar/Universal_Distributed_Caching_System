@@ -1,15 +1,20 @@
 import express from "express";
-import { setCache,getCache,hasCache,deleteCache,getCacheSize,getCacheStats,debugCache } from "../controllers/cache.controller.js";
 
-const router = express.Router();
+export function cacheRoutes(controller) {
+  const router = express.Router();
 
-router.post("/", setCache);
-router.get("/cache-size", getCacheSize);
-router.get("/debug", debugCache);
-router.get("/stats", getCacheStats);
+  router.get("/health", controller.health);
+  router.get("/keys", controller.listCacheKeys);
+  router.post("/", controller.setCache);
+  router.delete("/", controller.flushCache);
+  router.get("/cache-size", controller.getCacheSize);
+  router.get("/debug", controller.debugCache);
+  router.get("/stats", controller.getCacheStats);
 
-router.get("/has/:key", hasCache);
-router.get("/:key", getCache);
-router.delete("/delete/:key", deleteCache);
+  router.get("/locate/:key", controller.locateKey);
+  router.get("/has/:key", controller.hasCache);
+  router.get("/:key", controller.getCache);
+  router.delete("/delete/:key", controller.deleteCache);
 
-export default router;
+  return router;
+}
